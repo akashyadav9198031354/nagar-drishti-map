@@ -76,7 +76,7 @@ export function scoreCluster(reports: Report[]) {
   const recency = recent * 1.5;
   const severity =
     (open.reduce((s, r) => s + r.severity, 0) / Math.max(open.length, 1)) *
-    (SEVERITY_WEIGHT[reports[0]?.category] ?? 1);
+    (SEVERITY_WEIGHT[reports[0]?.category ?? "other"] ?? 1);
   const evidence = open.filter((r) => r.image_path).length * 0.5;
   const score = open.length === 0 ? 0 : Math.round((concentration + recency + severity + evidence) * 10) / 10;
   const priority: Cluster["priority"] = score >= 14 ? "High" : score >= 7 ? "Medium" : "Low";

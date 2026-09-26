@@ -47,7 +47,7 @@ function ReportPage() {
   const related = picked && category ? findRelated(reports, picked[0], picked[1], category) : [];
 
   function useGps() {
-    if (!navigator.geolocation) return toast.error("GPS उपलब्ध नहीं — नक्शे पर जगह चुनें");
+    if (!navigator.geolocation) { toast.error("GPS उपलब्ध नहीं — नक्शे पर जगह चुनें"); return; }
     navigator.geolocation.getCurrentPosition(
       (p) => setPicked([p.coords.latitude, p.coords.longitude]),
       () => toast.error("स्थान नहीं मिला — नक्शे पर टैप करें"),
@@ -59,7 +59,7 @@ function ReportPage() {
     try {
       const imageDataUrl = file ? await fileToDataUrl(file) : undefined;
       const r = await classify({ data: { description, imageDataUrl } });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) { toast.error(r.error); return; }
       setAi(r);
       setCategory(r.category);
       setSeverity(r.severity);
@@ -71,8 +71,8 @@ function ReportPage() {
   }
 
   async function submit() {
-    if (!picked) return toast.error("कृपया स्थान चुनें");
-    if (!category) return toast.error("कृपया श्रेणी चुनें");
+    if (!picked) { toast.error("कृपया स्थान चुनें"); return; }
+    if (!category) { toast.error("कृपया श्रेणी चुनें"); return; }
     setSubmitting(true);
     try {
       const image_path = file ? await uploadPhoto(file) : null;
