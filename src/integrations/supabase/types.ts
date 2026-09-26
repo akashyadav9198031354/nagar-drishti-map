@@ -14,16 +14,128 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      reports: {
+        Row: {
+          ai_category: string | null
+          ai_confidence: number | null
+          category: string
+          created_at: string
+          description: string
+          id: string
+          image_path: string | null
+          latitude: number
+          longitude: number
+          reference_id: string
+          severity: number
+          status: string
+          updated_at: string
+          ward: string | null
+        }
+        Insert: {
+          ai_category?: string | null
+          ai_confidence?: number | null
+          category: string
+          created_at?: string
+          description?: string
+          id?: string
+          image_path?: string | null
+          latitude: number
+          longitude: number
+          reference_id?: string
+          severity?: number
+          status?: string
+          updated_at?: string
+          ward?: string | null
+        }
+        Update: {
+          ai_category?: string | null
+          ai_confidence?: number | null
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          image_path?: string | null
+          latitude?: number
+          longitude?: number
+          reference_id?: string
+          severity?: number
+          status?: string
+          updated_at?: string
+          ward?: string | null
+        }
+        Relationships: []
+      }
+      resolution_records: {
+        Row: {
+          created_at: string
+          evidence_image_path: string | null
+          id: string
+          note: string | null
+          report_id: string
+          status: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          evidence_image_path?: string | null
+          id?: string
+          note?: string | null
+          report_id: string
+          status: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          evidence_image_path?: string | null
+          id?: string
+          note?: string | null
+          report_id?: string
+          status?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolution_records_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "authority" | "citizen"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +262,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["authority", "citizen"],
+    },
   },
 } as const
