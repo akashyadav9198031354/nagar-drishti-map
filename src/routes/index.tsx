@@ -21,7 +21,7 @@ export const Route = createFileRoute("/")({
 function Home() {
   const { data: reports = [] } = useQuery(reportsQuery);
   const clusters = buildClusters(reports);
-  const open = reports.filter((r) => r.status !== "resolved").length;
+  const open = reports.filter((r) => !["resolved","verified"].includes(r.status)).length;
   const resolved = reports.length - open;
   const { lang } = useLang();
   const t = useT();

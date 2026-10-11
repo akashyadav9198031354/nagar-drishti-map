@@ -17,6 +17,7 @@ export const STATUSES = [
   { id: "assigned", hi: "सौंपा गया", en: "Assigned" },
   { id: "in_progress", hi: "कार्य जारी", en: "In Progress" },
   { id: "resolved", hi: "हल हुआ", en: "Resolved" },
+  { id: "verified", hi: "सत्यापित", en: "Verified" },
 ] as const;
 export const statusOf = (id: string) => STATUSES.find((s) => s.id === id) ?? STATUSES[0];
 export const statusIndex = (id: string) => STATUSES.findIndex((s) => s.id === id);
@@ -69,7 +70,7 @@ const SEVERITY_WEIGHT: Record<string, number> = {
 
 /** Transparent priority-support score: concentration + recency + severity + evidence. */
 export function scoreCluster(reports: Report[]) {
-  const open = reports.filter((r) => r.status !== "resolved");
+  const open = reports.filter((r) => !["resolved","verified"].includes(r.status));
   const now = Date.now();
   const recent = open.filter((r) => now - new Date(r.created_at).getTime() < 48 * 3600e3).length;
   const concentration = Math.min(open.length, 10) * 2;
@@ -111,7 +112,7 @@ export function findRelated(reports: Report[], lat: number, lng: number, categor
   return reports.filter(
     (r) =>
       r.category === category &&
-      r.status !== "resolved" &&
+      !["resolved","verified"].includes(r.status) &&
       distanceMeters([r.latitude, r.longitude], [lat, lng]) <= CLUSTER_RADIUS_M,
   );
 }
