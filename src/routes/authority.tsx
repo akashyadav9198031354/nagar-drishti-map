@@ -252,27 +252,44 @@ function Dashboard({ userId, email }: { userId: string; email: string }) {
   );
 }
 
+type Rec = { id: string; status: string; note: string | null; evidence_image_path: string | null; created_at: string };
+
 function UpdatePanel({ report, userId, onClose }: { report: Report; userId: string; onClose: () => void }) {
   const qc = useQueryClient();
   const [status, setStatus] = useState(report.status);
   const [category, setCategory] = useState(report.category);
   const [note, setNote] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [img, setImg] = useState<string | null>(null);
-  useEffect(() => { photoUrl(report.image_path).then(setImg); }, [report.id]);
+  const [recs, setRecs] = useState<Rec[]>([]);
+  const [urls, setUrls] = useState<Record<string, string>>({});
 
-  async function save() {
+  async function loadHistory() {
+    const { data } = await supabase.from("resolution_records").select("*").eq("report_id", report.id).order("created_at");
+    const list = (data ?? []) as Rec[];
+    setRecs(list);
+    list.forEach((r) => r.evidence_image_path && photoUrl(r.evidence_image_path).then((u) => u && setUrls((m) => ({ ...m, [r.id]: u }))));
+  }
+  useEffect(() => { photoUrl(report.image_path).then(setImg); loadHistory(); }, [report.id]);
+
+  async function save(override?: { status: string; note: string }) {
+    const st = override?.status ?? status;
+    const nt = override?.note ?? note;
     setBusy(true);
     try {
-      const evidence_image_path = file ? await uploadPhoto(file, "resolutions") : null;
-      const { error: e1 } = await supabase.from("reports").update({ status, category, updated_at: new Date().toISOString() }).eq("id", report.id);
+      const { error: e1 } = await supabase.from("reports").update({ status: st, category, updated_at: new Date().toISOString() }).eq("id", report.id);
       if (e1) throw e1;
-      const { error: e2 } = await supabase.from("resolution_records").insert({ report_id: report.id, status, note: note || null, evidence_image_path, updated_by: userId });
+      const paths = await Promise.all(files.map((f) => uploadPhoto(f, "resolutions")));
+      const rows = paths.length
+        ? paths.map((p, i) => ({ report_id: report.id, status: st, note: i === 0 ? nt || null : null, evidence_image_path: p, updated_by: userId }))
+        : [{ report_id: report.id, status: st, note: nt || null, evidence_image_path: null, updated_by: userId }];
+      const { error: e2 } = await supabase.from("resolution_records").insert(rows);
       if (e2) throw e2;
       toast.success("अपडेट सहेजा गया");
       qc.invalidateQueries({ queryKey: ["reports"] });
-      onClose();
+      setStatus(st); setNote(""); setFiles([]);
+      loadHistory();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -280,9 +297,12 @@ function UpdatePanel({ report, userId, onClose }: { report: Report; userId: stri
     }
   }
 
+  const idx = statusIndex(status);
+  const current = statusIndex(report.status);
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-foreground/40" onClick={onClose}>
-      <div className="h-full w-full max-w-md overflow-auto bg-background p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="h-full w-full max-w-lg overflow-auto bg-background p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between">
           <h2 className="text-3xl">{report.reference_id}</h2>
           <button onClick={onClose} className="text-2xl">×</button>
@@ -292,19 +312,53 @@ function UpdatePanel({ report, userId, onClose }: { report: Report; userId: stri
         {report.ai_category && (
           <p className="mt-3 text-sm text-muted-foreground">AI सुझाव: {categoryOf(report.ai_category).hi} ({Math.round(Number(report.ai_confidence ?? 0) * 100)}%)</p>
         )}
-        <label className="mt-4 block text-sm font-semibold">श्रेणी (सुधारें)</label>
+
+        <h3 className="mt-5 text-xl">कार्य की प्रगति / Progress</h3>
+        <ol className="mt-2 space-y-2">
+          {STATUSES.map((s, i) => (
+            <li key={s.id} className="flex items-center gap-2 text-sm">
+              <span className={`grid h-6 w-6 place-items-center rounded-full border-2 text-xs ${i <= current ? "border-success bg-success text-background" : "border-border text-muted-foreground"}`}>{i <= current ? "✓" : i + 1}</span>
+              <span className={i <= current ? "font-semibold" : "text-muted-foreground"}>{s.hi} ({s.en})</span>
+            </li>
+          ))}
+        </ol>
+
+        <h3 className="mt-5 text-xl">पूरा इतिहास व फोटो</h3>
+        {recs.length === 0 ? (
+          <p className="mt-1 text-sm text-muted-foreground">अभी कोई अपडेट नहीं।</p>
+        ) : (
+          <ul className="mt-2 space-y-2 border-l-2 border-border pl-3">
+            {recs.map((r) => (
+              <li key={r.id} className="rounded-lg bg-muted p-2 text-sm">
+                <div className="font-semibold">{statusOf(r.status).hi} <span className="font-normal text-muted-foreground">· {new Date(r.created_at).toLocaleString("hi-IN")}</span></div>
+                {r.note && <p>{r.note}</p>}
+                {urls[r.id] && <a href={urls[r.id]} target="_blank" rel="noreferrer"><img src={urls[r.id]} alt="कार्य फोटो" className="mt-1 h-32 w-full rounded-md object-cover" /></a>}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {report.status === "resolved" && (
+          <button onClick={() => save({ status: "verified", note: note || "मौके पर जाँच कर कार्य सत्यापित किया गया" })} disabled={busy} className="mt-5 w-full rounded-xl bg-success py-3 font-semibold text-background disabled:opacity-60">
+            ✓ कार्य सत्यापित करें (Verify)
+          </button>
+        )}
+
+        <h3 className="mt-6 text-xl">नया अपडेट जोड़ें</h3>
+        <label className="mt-2 block text-sm font-semibold">श्रेणी (सुधारें)</label>
         <Select value={category} onChange={setCategory} options={CATEGORIES.map((c) => [c.id, `${c.icon} ${c.hi}`] as [string, string])} />
-        <label className="mt-4 block text-sm font-semibold">स्थिति</label>
+        <label className="mt-4 block text-sm font-semibold">स्थिति (चरण)</label>
         <div className="mt-1 grid grid-cols-2 gap-2">
-          {STATUSES.map((s) => (
-            <button key={s.id} onClick={() => setStatus(s.id)} className={`rounded-lg border p-2 text-sm ${status === s.id ? "border-primary bg-primary/10 font-semibold" : "border-border"}`}>{s.hi}</button>
+          {STATUSES.map((s, i) => (
+            <button key={s.id} onClick={() => setStatus(s.id)} className={`rounded-lg border p-2 text-sm ${status === s.id ? "border-primary bg-primary/10 font-semibold" : i < idx ? "border-success/50" : "border-border"}`}>{s.hi}</button>
           ))}
         </div>
         <label className="mt-4 block text-sm font-semibold">टिप्पणी</label>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-input bg-card p-3" placeholder="जैसे: नाला साफ़ कराया गया" />
-        <label className="mt-4 block text-sm font-semibold">समाधान फोटो (प्रमाण)</label>
-        <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="mt-1 text-sm" />
-        <button onClick={save} disabled={busy} className="mt-6 w-full rounded-xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60">
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-input bg-card p-3" placeholder="जैसे: टीम मौके पर पहुँची, काम शुरू हुआ" />
+        <label className="mt-4 block text-sm font-semibold">काम की फोटो (एक से ज़्यादा चुन सकते हैं)</label>
+        <input type="file" accept="image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} className="mt-1 text-sm" />
+        {files.length > 0 && <p className="mt-1 text-xs text-muted-foreground">{files.length} फोटो चुनी गईं</p>}
+        <button onClick={() => save()} disabled={busy} className="mt-6 w-full rounded-xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60">
           {busy ? "सहेज रहे हैं…" : "अपडेट सहेजें"}
         </button>
       </div>
