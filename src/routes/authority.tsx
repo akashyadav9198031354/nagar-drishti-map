@@ -70,6 +70,7 @@ function Login() {
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [govtId, setGovtId] = useState("");
   const [busy, setBusy] = useState(false);
   async function go(e: React.FormEvent) {
     e.preventDefault();
@@ -77,7 +78,11 @@ function Login() {
     const { error, data } =
       mode === "in"
         ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${location.origin}/authority` } });
+        : await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { govt_id: govtId.trim() }, emailRedirectTo: `${location.origin}/authority` },
+          });
     setBusy(false);
     if (error) { toast.error(error.message); return; }
     if (mode === "up" && !data.session) toast.success("ईमेल में पुष्टि लिंक भेजा गया है");
@@ -85,14 +90,18 @@ function Login() {
   return (
     <div className="mx-auto max-w-md px-4 py-16">
       <h1 className="text-4xl">अधिकारी लॉगिन</h1>
-      <p className="mt-2 text-muted-foreground">Authority / field team sign-in</p>
+      <p className="mt-2 text-muted-foreground">Authority / field team sign-in — सिर्फ़ सरकारी ID से</p>
       <form onSubmit={go} className="mt-8 space-y-3">
+        {mode === "up" && (
+          <input required value={govtId} onChange={(e) => setGovtId(e.target.value)} placeholder="सरकारी ID (जैसे UP-GOV-2026-001)" className="w-full rounded-xl border border-input bg-card p-3" />
+        )}
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full rounded-xl border border-input bg-card p-3" />
         <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full rounded-xl border border-input bg-card p-3" />
         <button disabled={busy} className="w-full rounded-xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60">
           {mode === "in" ? "साइन इन" : "खाता बनाएं"}
         </button>
       </form>
+      <p className="mt-3 text-xs text-muted-foreground">अधिकारी खाता सिर्फ़ सरकार द्वारा जारी ID से बनता है। बिना मान्य ID के खाता आम नागरिक रहता है।</p>
       <button onClick={() => setMode(mode === "in" ? "up" : "in")} className="mt-4 text-sm text-secondary underline">
         {mode === "in" ? "नया खाता बनाएं" : "पहले से खाता है? साइन इन"}
       </button>
