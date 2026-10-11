@@ -7,7 +7,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { LazyMap } from "@/components/LazyMap";
 import { supabase } from "@/integrations/supabase/client";
 import { photoUrl, reportsQuery, uploadPhoto } from "@/lib/reports";
-import { buildClusters, CATEGORIES, categoryOf, DEFAULT_CENTER, STATUSES, statusOf, timeAgo, type Cluster, type Report } from "@/lib/civic";
+import { buildClusters, CATEGORIES, categoryOf, DEFAULT_CENTER, STATUSES, statusIndex, statusOf, timeAgo, type Cluster, type Report } from "@/lib/civic";
 
 export const Route = createFileRoute("/authority")({
   head: () => ({
