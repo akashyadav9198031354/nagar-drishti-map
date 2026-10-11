@@ -128,11 +128,11 @@ function Dashboard({ userId, email }: { userId: string; email: string }) {
     total: filtered.length,
     pending: filtered.filter((r) => ["reported", "under_review", "assigned"].includes(r.status)).length,
     progress: filtered.filter((r) => r.status === "in_progress").length,
-    resolved: filtered.filter((r) => r.status === "resolved").length,
+    resolved: filtered.filter((r) => r.status === "resolved" || r.status === "verified").length,
   };
   const byCat = CATEGORIES.map((c) => ({ ...c, n: filtered.filter((r) => r.category === c.id).length })).filter((c) => c.n);
   const maxCat = Math.max(1, ...byCat.map((c) => c.n));
-  const byWard = wards.map((w) => ({ w, n: filtered.filter((r) => r.ward === w && r.status !== "resolved").length })).sort((a, b) => b.n - a.n);
+  const byWard = wards.map((w) => ({ w, n: filtered.filter((r) => r.ward === w && r.status !== "resolved" && r.status !== "verified").length })).sort((a, b) => b.n - a.n);
 
   const list = cluster ? cluster.reports : filtered;
 

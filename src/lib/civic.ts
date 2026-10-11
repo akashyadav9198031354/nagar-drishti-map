@@ -17,6 +17,7 @@ export const STATUSES = [
   { id: "assigned", hi: "सौंपा गया", en: "Assigned" },
   { id: "in_progress", hi: "कार्य जारी", en: "In Progress" },
   { id: "resolved", hi: "हल हुआ", en: "Resolved" },
+  { id: "verified", hi: "सत्यापित", en: "Verified" },
 ] as const;
 export const statusOf = (id: string) => STATUSES.find((s) => s.id === id) ?? STATUSES[0];
 export const statusIndex = (id: string) => STATUSES.findIndex((s) => s.id === id);
