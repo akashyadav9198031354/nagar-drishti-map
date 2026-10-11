@@ -92,7 +92,7 @@ export default function IssueMap({
           <Marker
             key={r.id}
             position={[r.latitude, r.longitude]}
-            icon={pin(cat.icon, cat.color, r.status === "resolved")}
+            icon={pin(cat.icon, cat.color, ["resolved","verified"].includes(r.status))}
           >
             <Popup>
               <b>{r.reference_id}</b> · {cat.hi}

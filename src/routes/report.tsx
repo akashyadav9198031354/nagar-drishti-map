@@ -224,7 +224,7 @@ function ReportPage() {
                 {t("repGps")}
               </button>
               <LazyMap
-                reports={reports.filter((r) => r.status !== "resolved")}
+                reports={reports.filter((r) => !["resolved","verified"].includes(r.status))}
                 center={picked ?? DEFAULT_CENTER}
                 picked={picked}
                 onPick={(lat, lng) => setPicked([lat, lng])}
