@@ -282,7 +282,7 @@ function UpdatePanel({ report, userId, onClose }: { report: Report; userId: stri
       if (e1) throw e1;
       const paths = await Promise.all(files.map((f) => uploadPhoto(f, "resolutions")));
       const rows = paths.length
-        ? paths.map((p, i) => ({ report_id: report.id, status: st, note: i === 0 ? nt || null : null, evidence_image_path: p, updated_by: userId }))
+        ? paths.map((p, i) => ({ report_id: report.id, status: st, note: i === 0 ? nt || null : null, evidence_image_path: p as string | null, updated_by: userId }))
         : [{ report_id: report.id, status: st, note: nt || null, evidence_image_path: null, updated_by: userId }];
       const { error: e2 } = await supabase.from("resolution_records").insert(rows);
       if (e2) throw e2;
