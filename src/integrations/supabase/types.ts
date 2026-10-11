@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      authority_ids: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          govt_id: string
+          id: string
+          used: boolean
+          used_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          govt_id: string
+          id?: string
+          used?: boolean
+          used_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          govt_id?: string
+          id?: string
+          used?: boolean
+          used_by?: string | null
+        }
+        Relationships: []
+      }
       reports: {
         Row: {
           ai_category: string | null
