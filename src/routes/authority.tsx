@@ -7,7 +7,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { LazyMap } from "@/components/LazyMap";
 import { supabase } from "@/integrations/supabase/client";
 import { photoUrl, reportsQuery, uploadPhoto } from "@/lib/reports";
-import { buildClusters, CATEGORIES, categoryOf, DEFAULT_CENTER, STATUSES, statusIndex, statusOf, timeAgo, type Cluster, type Report } from "@/lib/civic";
+import { buildClusters, CATEGORIES, categoryOf, DEFAULT_CENTER, ESCALATION_HOURS, hoursSinceAction, isEscalated, mapLinks, STATUSES, statusIndex, statusOf, timeAgo, type Cluster, type Report } from "@/lib/civic";
 
 export const Route = createFileRoute("/authority")({
   head: () => ({
@@ -119,7 +119,10 @@ function Dashboard({ userId, email }: { userId: string; email: string }) {
 
   const wards = useMemo(() => [...new Set(reports.map((r) => r.ward).filter(Boolean))] as string[], [reports]);
   const filtered = reports.filter(
-    (r) => (cat === "all" || r.category === cat) && (ward === "all" || r.ward === ward) && (status === "all" || r.status === status),
+    (r) =>
+      (cat === "all" || r.category === cat) &&
+      (ward === "all" || r.ward === ward) &&
+      (status === "all" || (status === "escalated" ? isEscalated(r) : r.status === status)),
   );
   const clusters = buildClusters(filtered);
   const multi = clusters.filter((c) => c.reports.length > 1);
@@ -134,7 +137,11 @@ function Dashboard({ userId, email }: { userId: string; email: string }) {
   const maxCat = Math.max(1, ...byCat.map((c) => c.n));
   const byWard = wards.map((w) => ({ w, n: filtered.filter((r) => r.ward === w && r.status !== "resolved" && r.status !== "verified").length })).sort((a, b) => b.n - a.n);
 
-  const list = cluster ? cluster.reports : filtered;
+  const escalatedList = filtered.filter((r) => isEscalated(r)).sort((a, b) => hoursSinceAction(b) - hoursSinceAction(a));
+  const list = useMemo(() => {
+    const arr = [...(cluster ? cluster.reports : filtered)];
+    return arr.sort((a, b) => Number(isEscalated(b)) - Number(isEscalated(a)) || b.created_at.localeCompare(a.created_at));
+  }, [cluster, filtered]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -164,7 +171,7 @@ function Dashboard({ userId, email }: { userId: string; email: string }) {
       <div className="mt-6 flex flex-wrap gap-2">
         <Select value={cat} onChange={setCat} options={[["all", "सभी श्रेणियाँ"], ...CATEGORIES.map((c) => [c.id, `${c.icon} ${c.hi}`] as [string, string])]} />
         <Select value={ward} onChange={setWard} options={[["all", "सभी वार्ड"], ...wards.map((w) => [w, w] as [string, string])]} />
-        <Select value={status} onChange={setStatus} options={[["all", "सभी स्थितियाँ"], ...STATUSES.map((s) => [s.id, s.hi] as [string, string])]} />
+        <Select value={status} onChange={setStatus} options={[["all", "सभी स्थितियाँ"], ["escalated", `⚠ उच्चस्तरीय भेजी गई (${ESCALATION_HOURS}घं+)`], ...STATUSES.map((s) => [s.id, s.hi] as [string, string])]} />
       </div>
 
       <div className="mt-4 grid lg:grid-cols-[1.5fr_1fr] gap-6">
@@ -201,13 +208,26 @@ function Dashboard({ userId, email }: { userId: string; email: string }) {
 
       <div className="mt-6 grid lg:grid-cols-[1.5fr_1fr] gap-6">
         <div className="rounded-2xl border border-border bg-card p-4 overflow-x-auto">
+          {escalatedList.length > 0 && (
+            <div className="mb-3 rounded-xl border border-destructive bg-destructive/10 p-3 text-sm">
+              <b>⚠ उच्चस्तरीय अधिकारी को भेजी गई: {escalatedList.length} शिकायतें</b>
+              <p className="mt-0.5 text-xs text-muted-foreground">{ESCALATION_HOURS} घंटे से अधिक समय तक बिना किसी कार्रवाई — इन्हें सबसे पहले देखें। कार्रवाई होते ही यह फ़्लैग हट जाएगा।</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {escalatedList.map((r) => (
+                  <button key={r.id} onClick={() => setSelected(r)} className="rounded-full bg-destructive px-2.5 py-0.5 text-xs font-semibold text-destructive-foreground">
+                    {r.reference_id} · {hoursSinceAction(r)} घं
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <h2 className="text-2xl">{cluster ? "क्लस्टर की शिकायतें" : "हाल की शिकायतें"}</h2>
             {cluster && <button onClick={() => setCluster(null)} className="text-sm underline">सभी दिखाएँ</button>}
           </div>
           <table className="mt-3 w-full text-sm">
             <thead className="text-left text-muted-foreground">
-              <tr><th className="py-2">ID</th><th>श्रेणी</th><th>वार्ड</th><th>AI</th><th>स्थिति</th><th>समय</th><th /></tr>
+              <tr><th className="py-2">ID</th><th>श्रेणी</th><th>वार्ड</th><th>स्थान</th><th>AI</th><th>स्थिति</th><th>समय</th><th /></tr>
             </thead>
             <tbody>
               {list.map((r) => (
@@ -215,8 +235,16 @@ function Dashboard({ userId, email }: { userId: string; email: string }) {
                   <td className="py-2 font-mono">{r.reference_id}</td>
                   <td>{categoryOf(r.category).icon} {categoryOf(r.category).hi}</td>
                   <td>{r.ward ?? "—"}</td>
+                  <td className="whitespace-nowrap font-mono text-xs">
+                    <a href={mapLinks(r.latitude, r.longitude).google} target="_blank" rel="noreferrer" className="text-secondary underline" title="Google Maps में सटीक स्थान खोलें">
+                      📍 {r.latitude.toFixed(5)}, {r.longitude.toFixed(5)}
+                    </a>
+                  </td>
                   <td>{r.ai_confidence != null ? `${Math.round(Number(r.ai_confidence) * 100)}%` : "—"}</td>
-                  <td><span className="rounded-full bg-muted px-2 py-0.5">{statusOf(r.status).hi}</span></td>
+                  <td>
+                    <span className="rounded-full bg-muted px-2 py-0.5">{statusOf(r.status).hi}</span>
+                    {isEscalated(r) && <span className="ml-1 whitespace-nowrap rounded-full bg-destructive px-2 py-0.5 text-xs font-semibold text-destructive-foreground">उच्चस्तरीय</span>}
+                  </td>
                   <td className="text-muted-foreground">{timeAgo(r.created_at)}</td>
                   <td><button onClick={() => setSelected(r)} className="rounded-lg bg-secondary px-3 py-1 text-secondary-foreground">अपडेट</button></td>
                 </tr>
@@ -309,6 +337,20 @@ function UpdatePanel({ report, userId, onClose }: { report: Report; userId: stri
         </div>
         <p className="mt-2">{report.description}</p>
         {img && <img src={img} alt="शिकायत फोटो" className="mt-3 h-48 w-full rounded-xl object-cover" />}
+        <div className="mt-3 rounded-xl border border-border bg-muted/40 p-3 text-sm">
+          <b>📍 सटीक स्थान / Exact location</b>
+          <div className="mt-1 font-mono">{report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}</div>
+          <div className="mt-1 flex flex-wrap gap-3">
+            <a href={mapLinks(report.latitude, report.longitude).google} target="_blank" rel="noreferrer" className="text-secondary underline">Google Maps में खोलें ↗</a>
+            <a href={mapLinks(report.latitude, report.longitude).osm} target="_blank" rel="noreferrer" className="text-secondary underline">ओपन स्ट्रीट मैप ↗</a>
+          </div>
+          {report.ward && <div className="mt-1 text-muted-foreground">वार्ड: {report.ward}</div>}
+        </div>
+        {isEscalated(report) && (
+          <p className="mt-3 rounded-xl border border-destructive bg-destructive/10 p-3 text-sm">
+            ⚠ {hoursSinceAction(report)} घंटे से कोई कार्रवाई नहीं — यह शिकायत उच्चस्तरीय अधिकारी को भेज दी गई है।
+          </p>
+        )}
         {report.ai_category && (
           <p className="mt-3 text-sm text-muted-foreground">AI सुझाव: {categoryOf(report.ai_category).hi} ({Math.round(Number(report.ai_confidence ?? 0) * 100)}%)</p>
         )}

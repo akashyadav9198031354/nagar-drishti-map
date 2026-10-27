@@ -124,3 +124,23 @@ export function timeAgo(iso: string) {
   if (h < 24) return `${h} घंटे पहले`;
   return `${Math.round(h / 24)} दिन पहले`;
 }
+
+export const ESCALATION_HOURS = 24;
+
+/** 24 घंटे तक कोई कार्रवाई नहीं → उच्चस्तरीय अधिकारी को भेजी गई (client-side, transparent). */
+export function isEscalated(r: Pick<Report, "status" | "updated_at">, now = Date.now()) {
+  if (["resolved", "verified"].includes(r.status)) return false;
+  return now - new Date(r.updated_at).getTime() >= ESCALATION_HOURS * 3600e3;
+}
+
+export function hoursSinceAction(r: Pick<Report, "updated_at">, now = Date.now()) {
+  return Math.max(0, Math.floor((now - new Date(r.updated_at).getTime()) / 3600e3));
+}
+
+export function mapLinks(lat: number, lng: number) {
+  const q = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+  return {
+    google: `https://www.google.com/maps?q=${q}`,
+    osm: `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat.toFixed(6)}/${lng.toFixed(6)}`,
+  };
+}
