@@ -7,7 +7,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { LazyMap } from "@/components/LazyMap";
 import { supabase } from "@/integrations/supabase/client";
 import { photoUrl, reportsQuery, uploadPhoto } from "@/lib/reports";
-import { buildClusters, CATEGORIES, categoryOf, DEFAULT_CENTER, STATUSES, statusIndex, statusOf, timeAgo, type Cluster, type Report } from "@/lib/civic";
+import { buildClusters, CATEGORIES, categoryOf, DEFAULT_CENTER, ESCALATION_HOURS, hoursSinceAction, isEscalated, mapLinks, STATUSES, statusIndex, statusOf, timeAgo, type Cluster, type Report } from "@/lib/civic";
 
 export const Route = createFileRoute("/authority")({
   head: () => ({
@@ -119,7 +119,10 @@ function Dashboard({ userId, email }: { userId: string; email: string }) {
 
   const wards = useMemo(() => [...new Set(reports.map((r) => r.ward).filter(Boolean))] as string[], [reports]);
   const filtered = reports.filter(
-    (r) => (cat === "all" || r.category === cat) && (ward === "all" || r.ward === ward) && (status === "all" || r.status === status),
+    (r) =>
+      (cat === "all" || r.category === cat) &&
+      (ward === "all" || r.ward === ward) &&
+      (status === "all" || (status === "escalated" ? isEscalated(r) : r.status === status)),
   );
   const clusters = buildClusters(filtered);
   const multi = clusters.filter((c) => c.reports.length > 1);
@@ -134,7 +137,11 @@ function Dashboard({ userId, email }: { userId: string; email: string }) {
   const maxCat = Math.max(1, ...byCat.map((c) => c.n));
   const byWard = wards.map((w) => ({ w, n: filtered.filter((r) => r.ward === w && r.status !== "resolved" && r.status !== "verified").length })).sort((a, b) => b.n - a.n);
 
-  const list = cluster ? cluster.reports : filtered;
+  const escalatedList = filtered.filter((r) => isEscalated(r)).sort((a, b) => hoursSinceAction(b) - hoursSinceAction(a));
+  const list = useMemo(() => {
+    const arr = [...(cluster ? cluster.reports : filtered)];
+    return arr.sort((a, b) => Number(isEscalated(b)) - Number(isEscalated(a)) || b.created_at.localeCompare(a.created_at));
+  }, [cluster, filtered]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
